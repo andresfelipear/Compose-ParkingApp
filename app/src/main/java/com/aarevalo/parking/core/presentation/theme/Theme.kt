@@ -1,4 +1,4 @@
-package com.aarevalo.parking.ui.theme
+package com.aarevalo.parking.core.presentation.theme
 
 import android.app.Activity
 import android.os.Build
