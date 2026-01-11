@@ -1,6 +1,5 @@
 package com.aarevalo.parking.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -12,37 +11,66 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = PrimaryLight,
+    onPrimary = OnPrimary,
+    primaryContainer = PrimaryDark,
+    onPrimaryContainer = OnPrimary,
+    secondary = SecondaryLight,
+    onSecondary = OnSecondary,
+    secondaryContainer = SecondaryDark,
+    onSecondaryContainer = OnSecondary,
+    tertiary = TertiaryLight,
+    onTertiary = OnTertiary,
+    tertiaryContainer = TertiaryDark,
+    onTertiaryContainer = OnTertiary,
+    background = BackgroundDark,
+    onBackground = OnBackgroundDark,
+    surface = SurfaceDark,
+    onSurface = OnSurfaceDark,
+    surfaceVariant = SurfaceVariantDark,
+    onSurfaceVariant = OnSurfaceVariantDark,
+    error = Error,
+    onError = OnError,
+    errorContainer = ErrorContainer,
+    onErrorContainer = OnErrorContainer
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = Primary,
+    onPrimary = OnPrimary,
+    primaryContainer = PrimaryLight,
+    onPrimaryContainer = PrimaryDark,
+    secondary = Secondary,
+    onSecondary = OnSecondary,
+    secondaryContainer = SecondaryLight,
+    onSecondaryContainer = SecondaryDark,
+    tertiary = Tertiary,
+    onTertiary = OnTertiary,
+    tertiaryContainer = TertiaryLight,
+    onTertiaryContainer = TertiaryDark,
+    background = Background,
+    onBackground = OnBackground,
+    surface = Surface,
+    onSurface = OnSurface,
+    surfaceVariant = SurfaceVariant,
+    onSurfaceVariant = OnSurfaceVariant,
+    error = Error,
+    onError = OnError,
+    errorContainer = ErrorContainer,
+    onErrorContainer = OnErrorContainer
 )
 
 @Composable
 fun ParkingTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(), // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    // Dynamic color is available on Android 12+
+    dynamicColor: Boolean = false, // Disabled by default to use our custom colors
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if(darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
 
         darkTheme -> DarkColorScheme
