@@ -2,8 +2,10 @@ package com.aarevalo.parking.authentication.presentation.forgotpassword
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aarevalo.parking.authentication.domain.usecase.ForgotPasswordResult
 import com.aarevalo.parking.authentication.domain.usecase.ForgotPasswordUseCase
-import com.aarevalo.parking.core.domain.util.Resource
+import com.aarevalo.parking.authentication.presentation.util.toUiText
+import com.aarevalo.parking.core.presentation.util.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,21 +54,38 @@ class ForgotPasswordViewModel @Inject constructor(
 
     private fun sendResetEmail() {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, generalError = null) }
+            _state.update { 
+                it.copy(
+                    isLoading = true, 
+                    generalError = null,
+                    emailError = null
+                ) 
+            }
 
             when (val result = forgotPasswordUseCase(state.value.email)) {
-                is Resource.Success -> {
+                is ForgotPasswordResult.Success -> {
                     Timber.d("Password reset email sent")
                     _state.update { it.copy(isLoading = false, isEmailSent = true) }
                 }
 
-                is Resource.Error -> {
-                    Timber.e("Error sending reset email: ${result.message}")
-                    _state.update { it.copy(isLoading = false, generalError = result.message) }
+                is ForgotPasswordResult.ValidationError -> {
+                    Timber.d("Validation error: ${result.error}")
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            generalError = result.error.toUiText()
+                        )
+                    }
                 }
 
-                is Resource.Loading -> {
-                    // Already handled
+                is ForgotPasswordResult.Error -> {
+                    Timber.e("Error sending reset email: ${result.message}")
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            generalError = UiText.DynamicString(result.message)
+                        )
+                    }
                 }
             }
         }

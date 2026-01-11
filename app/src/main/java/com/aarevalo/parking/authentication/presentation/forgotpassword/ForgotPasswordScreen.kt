@@ -35,7 +35,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -43,6 +45,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aarevalo.parking.R
 import com.aarevalo.parking.ui.theme.ParkingTheme
 import kotlinx.coroutines.flow.collectLatest
 
@@ -54,6 +57,7 @@ fun ForgotPasswordScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     LaunchedEffect(key1 = true) {
         viewModel.navigationEvent.collectLatest { event ->
@@ -65,7 +69,7 @@ fun ForgotPasswordScreen(
 
     LaunchedEffect(key1 = state.generalError) {
         state.generalError?.let { error ->
-            snackbarHostState.showSnackbar(error)
+            snackbarHostState.showSnackbar(error.asString(context))
             viewModel.onEvent(ForgotPasswordEvent.ClearError)
         }
     }
@@ -91,12 +95,12 @@ private fun ForgotPasswordScreenContent(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Reset Password") },
+                title = { Text(stringResource(R.string.reset_password)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.back)
                         )
                     }
                 }
@@ -145,7 +149,7 @@ private fun ResetPasswordForm(
     Spacer(modifier = Modifier.height(24.dp))
 
     Text(
-        text = "Forgot your password?",
+        text = stringResource(R.string.forgot_password_title),
         style = MaterialTheme.typography.headlineMedium,
         color = MaterialTheme.colorScheme.primary
     )
@@ -153,7 +157,7 @@ private fun ResetPasswordForm(
     Spacer(modifier = Modifier.height(16.dp))
 
     Text(
-        text = "Enter your email address and we'll send you a link to reset your password.",
+        text = stringResource(R.string.forgot_password_subtitle),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center
@@ -164,11 +168,11 @@ private fun ResetPasswordForm(
     OutlinedTextField(
         value = state.email,
         onValueChange = onEmailChanged,
-        label = { Text("Email") },
+        label = { Text(stringResource(R.string.email)) },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Default.Email,
-                contentDescription = "Email"
+                contentDescription = stringResource(R.string.email)
             )
         },
         keyboardOptions = KeyboardOptions(
@@ -182,7 +186,7 @@ private fun ResetPasswordForm(
             }
         ),
         isError = state.emailError != null,
-        supportingText = state.emailError?.let { { Text(it) } },
+        supportingText = state.emailError?.let { { Text(it.asString()) } },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
     )
@@ -202,7 +206,7 @@ private fun ResetPasswordForm(
                 modifier = Modifier.height(24.dp)
             )
         } else {
-            Text("Send Reset Link")
+            Text(stringResource(R.string.send_reset_link))
         }
     }
 
@@ -216,7 +220,7 @@ private fun EmailSentContent(
 ) {
     Icon(
         imageVector = Icons.Default.CheckCircle,
-        contentDescription = "Success",
+        contentDescription = null,
         tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.size(80.dp)
     )
@@ -224,7 +228,7 @@ private fun EmailSentContent(
     Spacer(modifier = Modifier.height(24.dp))
 
     Text(
-        text = "Check your email",
+        text = stringResource(R.string.check_your_email),
         style = MaterialTheme.typography.headlineMedium,
         color = MaterialTheme.colorScheme.primary
     )
@@ -232,7 +236,7 @@ private fun EmailSentContent(
     Spacer(modifier = Modifier.height(16.dp))
 
     Text(
-        text = "We've sent a password reset link to:",
+        text = stringResource(R.string.reset_email_sent_to),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center
@@ -250,7 +254,7 @@ private fun EmailSentContent(
     Spacer(modifier = Modifier.height(32.dp))
 
     Text(
-        text = "Didn't receive the email? Check your spam folder or try again with a different email address.",
+        text = stringResource(R.string.reset_email_hint),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center
@@ -259,7 +263,7 @@ private fun EmailSentContent(
     Spacer(modifier = Modifier.height(32.dp))
 
     TextButton(onClick = onBackToLogin) {
-        Text("Back to Sign In")
+        Text(stringResource(R.string.back_to_sign_in))
     }
 }
 

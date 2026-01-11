@@ -38,7 +38,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -47,6 +49,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aarevalo.parking.R
 import com.aarevalo.parking.ui.theme.ParkingTheme
 import kotlinx.coroutines.flow.collectLatest
 
@@ -60,6 +63,7 @@ fun SignUpScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     LaunchedEffect(key1 = true) {
         viewModel.navigationEvent.collectLatest { event ->
@@ -72,7 +76,7 @@ fun SignUpScreen(
 
     LaunchedEffect(key1 = state.generalError) {
         state.generalError?.let { error ->
-            snackbarHostState.showSnackbar(error)
+            snackbarHostState.showSnackbar(error.asString(context))
             viewModel.onEvent(SignUpEvent.ClearError)
         }
     }
@@ -98,12 +102,12 @@ private fun SignUpScreenContent(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Create Account") },
+                title = { Text(stringResource(R.string.create_account)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.back)
                         )
                     }
                 }
@@ -123,7 +127,7 @@ private fun SignUpScreenContent(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "Join Vancouver Parking",
+                text = stringResource(R.string.join_app),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -131,7 +135,7 @@ private fun SignUpScreenContent(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Find the best parking rates in downtown",
+                text = stringResource(R.string.join_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -142,11 +146,11 @@ private fun SignUpScreenContent(
             OutlinedTextField(
                 value = state.displayName,
                 onValueChange = { onEvent(SignUpEvent.DisplayNameChanged(it)) },
-                label = { Text("Display Name (Optional)") },
+                label = { Text(stringResource(R.string.display_name)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Person,
-                        contentDescription = "Display Name"
+                        contentDescription = stringResource(R.string.display_name)
                     )
                 },
                 keyboardOptions = KeyboardOptions(
@@ -157,7 +161,7 @@ private fun SignUpScreenContent(
                     onNext = { focusManager.moveFocus(FocusDirection.Down) }
                 ),
                 isError = state.displayNameError != null,
-                supportingText = state.displayNameError?.let { { Text(it) } },
+                supportingText = state.displayNameError?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -168,11 +172,11 @@ private fun SignUpScreenContent(
             OutlinedTextField(
                 value = state.email,
                 onValueChange = { onEvent(SignUpEvent.EmailChanged(it)) },
-                label = { Text("Email") },
+                label = { Text(stringResource(R.string.email)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Email,
-                        contentDescription = "Email"
+                        contentDescription = stringResource(R.string.email)
                     )
                 },
                 keyboardOptions = KeyboardOptions(
@@ -183,7 +187,7 @@ private fun SignUpScreenContent(
                     onNext = { focusManager.moveFocus(FocusDirection.Down) }
                 ),
                 isError = state.emailError != null,
-                supportingText = state.emailError?.let { { Text(it) } },
+                supportingText = state.emailError?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -194,11 +198,11 @@ private fun SignUpScreenContent(
             OutlinedTextField(
                 value = state.password,
                 onValueChange = { onEvent(SignUpEvent.PasswordChanged(it)) },
-                label = { Text("Password") },
+                label = { Text(stringResource(R.string.password)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Lock,
-                        contentDescription = "Password"
+                        contentDescription = stringResource(R.string.password)
                     )
                 },
                 trailingIcon = {
@@ -210,9 +214,9 @@ private fun SignUpScreenContent(
                                 Icons.Default.Visibility
                             },
                             contentDescription = if (state.isPasswordVisible) {
-                                "Hide password"
+                                stringResource(R.string.hide_password)
                             } else {
-                                "Show password"
+                                stringResource(R.string.show_password)
                             }
                         )
                     }
@@ -230,7 +234,7 @@ private fun SignUpScreenContent(
                     onNext = { focusManager.moveFocus(FocusDirection.Down) }
                 ),
                 isError = state.passwordError != null,
-                supportingText = state.passwordError?.let { { Text(it) } },
+                supportingText = state.passwordError?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -241,11 +245,11 @@ private fun SignUpScreenContent(
             OutlinedTextField(
                 value = state.confirmPassword,
                 onValueChange = { onEvent(SignUpEvent.ConfirmPasswordChanged(it)) },
-                label = { Text("Confirm Password") },
+                label = { Text(stringResource(R.string.confirm_password)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Lock,
-                        contentDescription = "Confirm Password"
+                        contentDescription = stringResource(R.string.confirm_password)
                     )
                 },
                 trailingIcon = {
@@ -257,9 +261,9 @@ private fun SignUpScreenContent(
                                 Icons.Default.Visibility
                             },
                             contentDescription = if (state.isConfirmPasswordVisible) {
-                                "Hide password"
+                                stringResource(R.string.hide_password)
                             } else {
-                                "Show password"
+                                stringResource(R.string.show_password)
                             }
                         )
                     }
@@ -280,7 +284,7 @@ private fun SignUpScreenContent(
                     }
                 ),
                 isError = state.confirmPasswordError != null,
-                supportingText = state.confirmPasswordError?.let { { Text(it) } },
+                supportingText = state.confirmPasswordError?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -301,7 +305,7 @@ private fun SignUpScreenContent(
                         modifier = Modifier.height(24.dp)
                     )
                 } else {
-                    Text("Create Account")
+                    Text(stringResource(R.string.create_account))
                 }
             }
 
@@ -309,7 +313,7 @@ private fun SignUpScreenContent(
 
             // Login link
             TextButton(onClick = { onEvent(SignUpEvent.NavigateToLogin) }) {
-                Text("Already have an account? Sign In")
+                Text(stringResource(R.string.already_have_account))
             }
 
             Spacer(modifier = Modifier.height(24.dp))

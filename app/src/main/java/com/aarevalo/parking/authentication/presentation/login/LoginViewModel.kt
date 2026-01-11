@@ -2,8 +2,10 @@ package com.aarevalo.parking.authentication.presentation.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aarevalo.parking.authentication.domain.usecase.SignInResult
 import com.aarevalo.parking.authentication.domain.usecase.SignInUseCase
-import com.aarevalo.parking.core.domain.util.Resource
+import com.aarevalo.parking.authentication.presentation.util.toUiText
+import com.aarevalo.parking.core.presentation.util.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,22 +68,40 @@ class LoginViewModel @Inject constructor(
 
     private fun login() {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, generalError = null) }
+            _state.update { 
+                it.copy(
+                    isLoading = true, 
+                    generalError = null,
+                    emailError = null,
+                    passwordError = null
+                ) 
+            }
 
             when (val result = signInUseCase(state.value.email, state.value.password)) {
-                is Resource.Success -> {
+                is SignInResult.Success -> {
                     Timber.d("Login successful")
                     _state.update { it.copy(isLoading = false, isLoginSuccessful = true) }
                     _navigationEvent.emit(LoginNavigationEvent.NavigateToHome)
                 }
 
-                is Resource.Error -> {
-                    Timber.e("Login error: ${result.message}")
-                    _state.update { it.copy(isLoading = false, generalError = result.message) }
+                is SignInResult.ValidationError -> {
+                    Timber.d("Validation error: ${result.error}")
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            generalError = result.error.toUiText()
+                        )
+                    }
                 }
 
-                is Resource.Loading -> {
-                    // Already handled
+                is SignInResult.Error -> {
+                    Timber.e("Login error: ${result.message}")
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            generalError = UiText.DynamicString(result.message)
+                        )
+                    }
                 }
             }
         }

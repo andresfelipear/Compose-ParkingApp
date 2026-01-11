@@ -34,7 +34,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -43,6 +45,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aarevalo.parking.R
 import com.aarevalo.parking.ui.theme.ParkingTheme
 import kotlinx.coroutines.flow.collectLatest
 
@@ -55,6 +58,7 @@ fun LoginScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     LaunchedEffect(key1 = true) {
         viewModel.navigationEvent.collectLatest { event ->
@@ -68,7 +72,7 @@ fun LoginScreen(
 
     LaunchedEffect(key1 = state.generalError) {
         state.generalError?.let { error ->
-            snackbarHostState.showSnackbar(error)
+            snackbarHostState.showSnackbar(error.asString(context))
             viewModel.onEvent(LoginEvent.ClearError)
         }
     }
@@ -104,7 +108,7 @@ private fun LoginScreenContent(
 
             // Title
             Text(
-                text = "Welcome Back",
+                text = stringResource(R.string.welcome_back),
                 style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -112,7 +116,7 @@ private fun LoginScreenContent(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Sign in to find the best parking rates in Vancouver",
+                text = stringResource(R.string.sign_in_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -123,11 +127,11 @@ private fun LoginScreenContent(
             OutlinedTextField(
                 value = state.email,
                 onValueChange = { onEvent(LoginEvent.EmailChanged(it)) },
-                label = { Text("Email") },
+                label = { Text(stringResource(R.string.email)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Email,
-                        contentDescription = "Email"
+                        contentDescription = stringResource(R.string.email)
                     )
                 },
                 keyboardOptions = KeyboardOptions(
@@ -138,7 +142,7 @@ private fun LoginScreenContent(
                     onNext = { focusManager.moveFocus(FocusDirection.Down) }
                 ),
                 isError = state.emailError != null,
-                supportingText = state.emailError?.let { { Text(it) } },
+                supportingText = state.emailError?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -149,11 +153,11 @@ private fun LoginScreenContent(
             OutlinedTextField(
                 value = state.password,
                 onValueChange = { onEvent(LoginEvent.PasswordChanged(it)) },
-                label = { Text("Password") },
+                label = { Text(stringResource(R.string.password)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Lock,
-                        contentDescription = "Password"
+                        contentDescription = stringResource(R.string.password)
                     )
                 },
                 trailingIcon = {
@@ -165,9 +169,9 @@ private fun LoginScreenContent(
                                 Icons.Default.Visibility
                             },
                             contentDescription = if (state.isPasswordVisible) {
-                                "Hide password"
+                                stringResource(R.string.hide_password)
                             } else {
-                                "Show password"
+                                stringResource(R.string.show_password)
                             }
                         )
                     }
@@ -188,7 +192,7 @@ private fun LoginScreenContent(
                     }
                 ),
                 isError = state.passwordError != null,
-                supportingText = state.passwordError?.let { { Text(it) } },
+                supportingText = state.passwordError?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -198,7 +202,7 @@ private fun LoginScreenContent(
                 onClick = { onEvent(LoginEvent.NavigateToForgotPassword) },
                 modifier = Modifier.align(Alignment.End)
             ) {
-                Text("Forgot Password?")
+                Text(stringResource(R.string.forgot_password))
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -217,7 +221,7 @@ private fun LoginScreenContent(
                         modifier = Modifier.height(24.dp)
                     )
                 } else {
-                    Text("Sign In")
+                    Text(stringResource(R.string.sign_in))
                 }
             }
 
@@ -225,7 +229,7 @@ private fun LoginScreenContent(
 
             // Sign up link
             TextButton(onClick = { onEvent(LoginEvent.NavigateToSignUp) }) {
-                Text("Don't have an account? Sign Up")
+                Text(stringResource(R.string.dont_have_account))
             }
 
             Spacer(modifier = Modifier.height(48.dp))
