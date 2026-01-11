@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Base application theme with Splash Screen -->
+    <!-- Base application theme with Splash Screen (Night Mode) -->
     <style name="Theme.Parking" parent="Theme.SplashScreen">
-        <!-- Splash screen background color -->
-        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <!-- Splash screen background color (darker for night mode) -->
+        <item name="windowSplashScreenBackground">@color/splash_background_night</item>
 
         <!-- Splash screen icon -->
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
 
-        <!-- Icon background (optional, for Android 12+) -->
-        <item name="windowSplashScreenIconBackgroundColor">@color/splash_icon_background</item>
+        <!-- Icon background -->
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_icon_background_night</item>
 
         <!-- Duration to keep splash visible (Android 12+ only) -->
         <item name="windowSplashScreenAnimationDuration">1000</item>
@@ -19,8 +19,8 @@
         <item name="postSplashScreenTheme">@style/Theme.Parking.Main</item>
     </style>
 
-    <!-- Main app theme (applied after splash) -->
-    <style name="Theme.Parking.Main" parent="android:Theme.Material.Light.NoActionBar">
+    <!-- Main app theme (applied after splash) - Night Mode -->
+    <style name="Theme.Parking.Main" parent="android:Theme.Material.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>

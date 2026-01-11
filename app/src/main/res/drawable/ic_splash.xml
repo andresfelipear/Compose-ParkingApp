@@ -5,14 +5,19 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Parking "P" letter -->
+    <!-- Background circle -->
     <path
         android:fillColor="#FFFFFF"
+        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
+
+    <!-- Parking "P" letter -->
+    <path
+        android:fillColor="#0077B6"
         android:pathData="M38,30h14c8.837,0 16,7.163 16,16s-7.163,16 -16,16h-6v16h-8V30zM46,54h6c4.418,0 8,-3.582 8,-8s-3.582,-8 -8,-8h-6V54z" />
 
-    <!-- Location pin indicator -->
+    <!-- Location pin dot -->
     <path
-        android:fillColor="#48B5E4"
+        android:fillColor="#023E8A"
         android:pathData="M54,72m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
 
 </vector>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Splash Screen Colors - Night Mode -->
+    <color name="splash_background_night">#023E8A</color>
+    <color name="splash_icon_background_night">#1A1C1E</color>
+</resources>
