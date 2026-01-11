@@ -5,61 +5,68 @@ import com.aarevalo.parking.authentication.domain.model.User
 import com.aarevalo.parking.authentication.domain.repository.AuthRepository
 import com.aarevalo.parking.core.di.IoDispatcher
 import com.aarevalo.parking.core.domain.util.Resource
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
+import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Implementation of AuthRepository.
- * 
- * Note: This is a placeholder implementation. In a production app,
- * you would integrate with Firebase Auth, your own backend, or another
- * authentication provider.
+ * Implementation of AuthRepository using Firebase Authentication.
  */
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
+    private val firebaseAuth: FirebaseAuth,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : AuthRepository {
 
-    private val _authState = MutableStateFlow<AuthState>(AuthState.Unauthenticated)
-    override val authState: Flow<AuthState> = _authState.asStateFlow()
+    override val authState: Flow<AuthState> = callbackFlow {
+        val authStateListener = FirebaseAuth.AuthStateListener { auth ->
+            val firebaseUser = auth.currentUser
+            val state = if (firebaseUser != null) {
+                AuthState.Authenticated(firebaseUser.toDomainUser())
+            } else {
+                AuthState.Unauthenticated
+            }
+            trySend(state)
+        }
 
-    private var _currentUser: User? = null
+        firebaseAuth.addAuthStateListener(authStateListener)
+
+        awaitClose {
+            firebaseAuth.removeAuthStateListener(authStateListener)
+        }
+    }.flowOn(ioDispatcher)
+
     override val currentUser: User?
-        get() = _currentUser
+        get() = firebaseAuth.currentUser?.toDomainUser()
 
     override suspend fun signInWithEmail(email: String, password: String): Resource<User> {
         return withContext(ioDispatcher) {
             try {
-                _authState.value = AuthState.Loading
+                val result = firebaseAuth.signInWithEmailAndPassword(email, password).await()
+                val firebaseUser = result.user
 
-                // TODO: Replace with actual authentication logic
-                // This is a placeholder that simulates a network call
-                delay(1000)
-
-                // Simulate successful login
-                val user = User(
-                    id = "user_${System.currentTimeMillis()}",
-                    email = email,
-                    displayName = email.substringBefore("@"),
-                    photoUrl = null,
-                    isEmailVerified = true
-                )
-
-                _currentUser = user
-                _authState.value = AuthState.Authenticated(user)
-
-                Timber.d("User signed in: ${user.email}")
-                Resource.Success(user)
+                if (firebaseUser != null) {
+                    Timber.d("User signed in: ${firebaseUser.email}")
+                    Resource.Success(firebaseUser.toDomainUser())
+                } else {
+                    Resource.Error("Sign in failed: User is null")
+                }
+            } catch (e: FirebaseAuthException) {
+                Timber.e(e, "Firebase Auth error during sign in")
+                Resource.Error(mapFirebaseAuthError(e.errorCode), e)
             } catch (e: Exception) {
-                Timber.e(e, "Error signing in")
-                _authState.value = AuthState.Error(e.message ?: "Sign in failed")
+                Timber.e(e, "Error during sign in")
                 Resource.Error(e.message ?: "Sign in failed", e)
             }
         }
@@ -72,27 +79,31 @@ class AuthRepositoryImpl @Inject constructor(
     ): Resource<User> {
         return withContext(ioDispatcher) {
             try {
-                _authState.value = AuthState.Loading
+                val result = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
+                val firebaseUser = result.user
 
-                // TODO: Replace with actual registration logic
-                delay(1500)
+                if (firebaseUser != null) {
+                    // Update display name if provided
+                    if (!displayName.isNullOrBlank()) {
+                        val profileUpdates = UserProfileChangeRequest.Builder()
+                            .setDisplayName(displayName)
+                            .build()
+                        firebaseUser.updateProfile(profileUpdates).await()
+                    }
 
-                val user = User(
-                    id = "user_${System.currentTimeMillis()}",
-                    email = email,
-                    displayName = displayName ?: email.substringBefore("@"),
-                    photoUrl = null,
-                    isEmailVerified = false
-                )
+                    // Send email verification
+                    firebaseUser.sendEmailVerification().await()
+                    Timber.d("User signed up: ${firebaseUser.email}, verification email sent")
 
-                _currentUser = user
-                _authState.value = AuthState.Authenticated(user)
-
-                Timber.d("User signed up: ${user.email}")
-                Resource.Success(user)
+                    Resource.Success(firebaseUser.toDomainUser())
+                } else {
+                    Resource.Error("Sign up failed: User is null")
+                }
+            } catch (e: FirebaseAuthException) {
+                Timber.e(e, "Firebase Auth error during sign up")
+                Resource.Error(mapFirebaseAuthError(e.errorCode), e)
             } catch (e: Exception) {
-                Timber.e(e, "Error signing up")
-                _authState.value = AuthState.Error(e.message ?: "Sign up failed")
+                Timber.e(e, "Error during sign up")
                 Resource.Error(e.message ?: "Sign up failed", e)
             }
         }
@@ -101,12 +112,11 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun signOut(): Resource<Unit> {
         return withContext(ioDispatcher) {
             try {
-                _currentUser = null
-                _authState.value = AuthState.Unauthenticated
+                firebaseAuth.signOut()
                 Timber.d("User signed out")
                 Resource.Success(Unit)
             } catch (e: Exception) {
-                Timber.e(e, "Error signing out")
+                Timber.e(e, "Error during sign out")
                 Resource.Error(e.message ?: "Sign out failed", e)
             }
         }
@@ -115,10 +125,12 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun sendPasswordResetEmail(email: String): Resource<Unit> {
         return withContext(ioDispatcher) {
             try {
-                // TODO: Replace with actual password reset logic
-                delay(1000)
+                firebaseAuth.sendPasswordResetEmail(email).await()
                 Timber.d("Password reset email sent to: $email")
                 Resource.Success(Unit)
+            } catch (e: FirebaseAuthException) {
+                Timber.e(e, "Firebase Auth error sending password reset email")
+                Resource.Error(mapFirebaseAuthError(e.errorCode), e)
             } catch (e: Exception) {
                 Timber.e(e, "Error sending password reset email")
                 Resource.Error(e.message ?: "Failed to send password reset email", e)
@@ -127,6 +139,38 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override fun isUserSignedIn(): Boolean {
-        return _currentUser != null
+        return firebaseAuth.currentUser != null
+    }
+
+    /**
+     * Maps Firebase Auth error codes to user-friendly messages.
+     */
+    private fun mapFirebaseAuthError(errorCode: String): String {
+        return when (errorCode) {
+            "ERROR_INVALID_EMAIL" -> "Invalid email address"
+            "ERROR_WRONG_PASSWORD" -> "Incorrect password"
+            "ERROR_USER_NOT_FOUND" -> "No account found with this email"
+            "ERROR_USER_DISABLED" -> "This account has been disabled"
+            "ERROR_TOO_MANY_REQUESTS" -> "Too many attempts. Please try again later"
+            "ERROR_EMAIL_ALREADY_IN_USE" -> "An account already exists with this email"
+            "ERROR_WEAK_PASSWORD" -> "Password is too weak. Please use a stronger password"
+            "ERROR_INVALID_CREDENTIAL" -> "Invalid credentials. Please check your email and password"
+            "ERROR_OPERATION_NOT_ALLOWED" -> "This sign-in method is not enabled"
+            "ERROR_NETWORK_REQUEST_FAILED" -> "Network error. Please check your connection"
+            else -> "Authentication failed. Please try again"
+        }
+    }
+
+    /**
+     * Extension function to convert FirebaseUser to domain User model.
+     */
+    private fun FirebaseUser.toDomainUser(): User {
+        return User(
+            id = uid,
+            email = email ?: "",
+            displayName = displayName,
+            photoUrl = photoUrl?.toString(),
+            isEmailVerified = isEmailVerified
+        )
     }
 }

@@ -1,11 +1,17 @@
 package com.aarevalo.parking.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.aarevalo.parking.authentication.domain.model.AuthState
+import com.aarevalo.parking.authentication.presentation.forgotpassword.ForgotPasswordScreen
 import com.aarevalo.parking.authentication.presentation.login.LoginScreen
 import com.aarevalo.parking.authentication.presentation.signup.SignUpScreen
 import com.aarevalo.parking.map.presentation.MapScreen
@@ -17,8 +23,49 @@ import com.aarevalo.parking.map.presentation.MapScreen
 fun ParkingNavGraph(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
-    startDestination: String = Screen.Login.route
+    authViewModel: AuthStateViewModel = hiltViewModel()
 ) {
+    val authState by authViewModel.authState.collectAsStateWithLifecycle()
+
+    // Determine start destination based on auth state
+    val startDestination = when (authState) {
+        is AuthState.Authenticated -> Screen.Map.route
+        else -> Screen.Login.route
+    }
+
+    // Handle auth state changes for navigation
+    LaunchedEffect(authState) {
+        when (authState) {
+            is AuthState.Authenticated -> {
+                // Navigate to map if currently on auth screens
+                if (navController.currentDestination?.route in listOf(
+                        Screen.Login.route,
+                        Screen.SignUp.route,
+                        Screen.ForgotPassword.route
+                    )
+                ) {
+                    navController.navigate(Screen.Map.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
+            is AuthState.Unauthenticated -> {
+                // Navigate to login if currently on protected screens
+                if (navController.currentDestination?.route !in listOf(
+                        Screen.Login.route,
+                        Screen.SignUp.route,
+                        Screen.ForgotPassword.route
+                    )
+                ) {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
+            else -> { /* Loading or Error - do nothing */ }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = startDestination,
@@ -58,8 +105,11 @@ fun ParkingNavGraph(
         }
 
         composable(route = Screen.ForgotPassword.route) {
-            // TODO: Implement ForgotPasswordScreen
-            // For now, just navigate back
+            ForgotPasswordScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
         }
 
         // Main Flow

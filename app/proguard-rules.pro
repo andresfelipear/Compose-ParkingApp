@@ -82,12 +82,28 @@
 -keep class com.google.android.gms.maps.** { *; }
 -keep interface com.google.android.gms.maps.** { *; }
 
+# ==================== Firebase ====================
+# Keep Firebase Auth classes
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+
+# Keep Firebase Auth error codes
+-keepclassmembers class com.google.firebase.auth.FirebaseAuthException {
+    public java.lang.String getErrorCode();
+}
+
+# Firebase Analytics
+-keep class com.google.firebase.analytics.** { *; }
+
 # ==================== Coroutines ====================
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
 -keepclassmembers class kotlinx.coroutines.** {
     volatile <fields>;
 }
+
+# Keep Play Services Tasks for coroutines integration
+-keep class com.google.android.gms.tasks.** { *; }
 
 # ==================== Keep DTOs and Entities ====================
 -keep class com.aarevalo.parking.core.data.remote.dto.** { *; }

@@ -4,6 +4,9 @@ agp = "8.7.3"
 kotlin = "2.0.21"
 ksp = "2.0.21-1.0.28"
 
+# Google Services
+googleServices = "4.4.2"
+
 # AndroidX Core
 coreKtx = "1.15.0"
 coreSplashscreen = "1.0.1"
@@ -42,6 +45,9 @@ timber = "5.0.1"
 googleMaps = "6.2.1"
 playServicesMaps = "19.0.0"
 playServicesLocation = "21.3.0"
+
+# Firebase
+firebaseBom = "33.7.0"
 
 # DataStore
 datastore = "1.1.1"
@@ -106,6 +112,7 @@ moshi-kotlin-codegen = { group = "com.squareup.moshi", name = "moshi-kotlin-code
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
 
 # Image Loading - Coil
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
@@ -117,6 +124,12 @@ timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "tim
 maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "googleMaps" }
 play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+
+# Firebase
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
+firebase-auth = { group = "com.google.firebase", name = "firebase-auth-ktx" }
+firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics-ktx" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore-ktx" }
 
 # DataStore
 datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
@@ -168,13 +181,19 @@ moshi = [
 
 coroutines = [
     "kotlinx-coroutines-core",
-    "kotlinx-coroutines-android"
+    "kotlinx-coroutines-android",
+    "kotlinx-coroutines-play-services"
 ]
 
 maps = [
     "maps-compose",
     "play-services-maps",
     "play-services-location"
+]
+
+firebase = [
+    "firebase-auth",
+    "firebase-analytics"
 ]
 
 [plugins]
@@ -184,3 +203,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
