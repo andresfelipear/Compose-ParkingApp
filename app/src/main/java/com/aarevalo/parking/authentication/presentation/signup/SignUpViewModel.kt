@@ -7,18 +7,15 @@ import com.aarevalo.parking.authentication.domain.usecase.SignUpUseCase
 import com.aarevalo.parking.authentication.presentation.util.toUiText
 import com.aarevalo.parking.core.presentation.util.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
-/**
- * ViewModel for the Sign Up screen.
- */
 @HiltViewModel
 class SignUpViewModel @Inject constructor(
     private val signUpUseCase: SignUpUseCase
@@ -27,72 +24,48 @@ class SignUpViewModel @Inject constructor(
     private val _state = MutableStateFlow(SignUpState())
     val state = _state.asStateFlow()
 
-    private val _navigationEvent = MutableSharedFlow<SignUpNavigationEvent>()
-    val navigationEvent = _navigationEvent.asSharedFlow()
+    private val eventChannel = Channel<SignUpScreenEvent>()
+    val events = eventChannel.receiveAsFlow()
 
-    fun onEvent(event: SignUpEvent) {
-        when (event) {
-            is SignUpEvent.EmailChanged -> {
-                _state.update { it.copy(email = event.email, emailError = null) }
+    fun onAction(action: SignUpAction) {
+        when (action) {
+            is SignUpAction.OnEmailChanged -> {
+                _state.update { it.copy(email = action.email) }
             }
 
-            is SignUpEvent.PasswordChanged -> {
-                _state.update { it.copy(password = event.password, passwordError = null) }
+            is SignUpAction.OnPasswordChanged -> {
+                _state.update { it.copy(password = action.password) }
             }
 
-            is SignUpEvent.ConfirmPasswordChanged -> {
-                _state.update {
-                    it.copy(
-                        confirmPassword = event.confirmPassword,
-                        confirmPasswordError = null
-                    )
-                }
+            is SignUpAction.OnConfirmPasswordChanged -> {
+                _state.update { it.copy(confirmPassword = action.confirmPassword) }
             }
 
-            is SignUpEvent.DisplayNameChanged -> {
-                _state.update {
-                    it.copy(
-                        displayName = event.displayName,
-                        displayNameError = null
-                    )
-                }
+            is SignUpAction.OnDisplayNameChanged -> {
+                _state.update { it.copy(displayName = action.displayName) }
             }
 
-            is SignUpEvent.TogglePasswordVisibility -> {
+            is SignUpAction.OnTogglePasswordVisibility -> {
                 _state.update { it.copy(isPasswordVisible = !it.isPasswordVisible) }
             }
 
-            is SignUpEvent.ToggleConfirmPasswordVisibility -> {
+            is SignUpAction.OnToggleConfirmPasswordVisibility -> {
                 _state.update { it.copy(isConfirmPasswordVisible = !it.isConfirmPasswordVisible) }
             }
 
-            is SignUpEvent.SignUp -> {
+            is SignUpAction.OnSignUpClick -> {
                 signUp()
             }
 
-            is SignUpEvent.NavigateToLogin -> {
-                viewModelScope.launch {
-                    _navigationEvent.emit(SignUpNavigationEvent.NavigateToLogin)
-                }
-            }
-
-            is SignUpEvent.ClearError -> {
-                _state.update { it.copy(generalError = null) }
+            is SignUpAction.OnLoginClick -> {
+                // Handled by the screen directly for navigation
             }
         }
     }
 
     private fun signUp() {
         viewModelScope.launch {
-            _state.update { 
-                it.copy(
-                    isLoading = true, 
-                    generalError = null,
-                    emailError = null,
-                    passwordError = null,
-                    confirmPasswordError = null
-                ) 
-            }
+            _state.update { it.copy(isLoading = true) }
 
             val result = signUpUseCase(
                 email = state.value.email,
@@ -101,38 +74,24 @@ class SignUpViewModel @Inject constructor(
                 displayName = state.value.displayName.takeIf { it.isNotBlank() }
             )
 
+            _state.update { it.copy(isLoading = false) }
+
             when (result) {
                 is SignUpResult.Success -> {
-                    Timber.d("Sign up successful")
-                    _state.update { it.copy(isLoading = false, isSignUpSuccessful = true) }
-                    _navigationEvent.emit(SignUpNavigationEvent.NavigateToHome)
+                    Timber.d("Sign up successful for user: ${result.user.email}")
+                    eventChannel.send(SignUpScreenEvent.Success)
                 }
 
                 is SignUpResult.ValidationError -> {
-                    Timber.d("Validation error: ${result.error}")
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            generalError = result.error.toUiText()
-                        )
-                    }
+                    Timber.d("Sign up validation error: ${result.error}")
+                    eventChannel.send(SignUpScreenEvent.Error(result.error.toUiText()))
                 }
 
                 is SignUpResult.Error -> {
                     Timber.e("Sign up error: ${result.message}")
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            generalError = UiText.DynamicString(result.message)
-                        )
-                    }
+                    eventChannel.send(SignUpScreenEvent.Error(UiText.DynamicString(result.message)))
                 }
             }
         }
     }
-}
-
-sealed class SignUpNavigationEvent {
-    data object NavigateToLogin : SignUpNavigationEvent()
-    data object NavigateToHome : SignUpNavigationEvent()
 }

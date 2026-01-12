@@ -7,18 +7,15 @@ import com.aarevalo.parking.authentication.domain.usecase.SignInUseCase
 import com.aarevalo.parking.authentication.presentation.util.toUiText
 import com.aarevalo.parking.core.presentation.util.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
-/**
- * ViewModel for the Login screen.
- */
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val signInUseCase: SignInUseCase
@@ -27,89 +24,64 @@ class LoginViewModel @Inject constructor(
     private val _state = MutableStateFlow(LoginState())
     val state = _state.asStateFlow()
 
-    private val _navigationEvent = MutableSharedFlow<LoginNavigationEvent>()
-    val navigationEvent = _navigationEvent.asSharedFlow()
+    private val eventChannel = Channel<LoginScreenEvent>()
+    val events = eventChannel.receiveAsFlow()
 
-    fun onEvent(event: LoginEvent) {
-        when (event) {
-            is LoginEvent.EmailChanged -> {
-                _state.update { it.copy(email = event.email, emailError = null) }
+    fun onAction(action: LoginAction) {
+        when (action) {
+            is LoginAction.OnEmailChanged -> {
+                _state.update { it.copy(email = action.email) }
             }
 
-            is LoginEvent.PasswordChanged -> {
-                _state.update { it.copy(password = event.password, passwordError = null) }
+            is LoginAction.OnPasswordChanged -> {
+                _state.update { it.copy(password = action.password) }
             }
 
-            is LoginEvent.TogglePasswordVisibility -> {
+            is LoginAction.OnTogglePasswordVisibility -> {
                 _state.update { it.copy(isPasswordVisible = !it.isPasswordVisible) }
             }
 
-            is LoginEvent.Login -> {
+            is LoginAction.OnLoginClick -> {
                 login()
             }
 
-            is LoginEvent.NavigateToSignUp -> {
-                viewModelScope.launch {
-                    _navigationEvent.emit(LoginNavigationEvent.NavigateToSignUp)
-                }
+            is LoginAction.OnSignUpClick -> {
+                // Handled by the screen directly for navigation
             }
 
-            is LoginEvent.NavigateToForgotPassword -> {
-                viewModelScope.launch {
-                    _navigationEvent.emit(LoginNavigationEvent.NavigateToForgotPassword)
-                }
-            }
-
-            is LoginEvent.ClearError -> {
-                _state.update { it.copy(generalError = null) }
+            is LoginAction.OnForgotPasswordClick -> {
+                // Handled by the screen directly for navigation
             }
         }
     }
 
     private fun login() {
         viewModelScope.launch {
-            _state.update { 
-                it.copy(
-                    isLoading = true, 
-                    generalError = null,
-                    emailError = null,
-                    passwordError = null
-                ) 
-            }
+            _state.update { it.copy(isLoading = true) }
 
-            when (val result = signInUseCase(state.value.email, state.value.password)) {
+            val result = signInUseCase(
+                email = state.value.email,
+                password = state.value.password
+            )
+
+            _state.update { it.copy(isLoading = false) }
+
+            when (result) {
                 is SignInResult.Success -> {
-                    Timber.d("Login successful")
-                    _state.update { it.copy(isLoading = false, isLoginSuccessful = true) }
-                    _navigationEvent.emit(LoginNavigationEvent.NavigateToHome)
+                    Timber.d("Login successful for user: ${result.user.email}")
+                    eventChannel.send(LoginScreenEvent.Success)
                 }
 
                 is SignInResult.ValidationError -> {
-                    Timber.d("Validation error: ${result.error}")
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            generalError = result.error.toUiText()
-                        )
-                    }
+                    Timber.d("Login validation error: ${result.error}")
+                    eventChannel.send(LoginScreenEvent.Error(result.error.toUiText()))
                 }
 
                 is SignInResult.Error -> {
                     Timber.e("Login error: ${result.message}")
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            generalError = UiText.DynamicString(result.message)
-                        )
-                    }
+                    eventChannel.send(LoginScreenEvent.Error(UiText.DynamicString(result.message)))
                 }
             }
         }
     }
-}
-
-sealed class LoginNavigationEvent {
-    data object NavigateToSignUp : LoginNavigationEvent()
-    data object NavigateToForgotPassword : LoginNavigationEvent()
-    data object NavigateToHome : LoginNavigationEvent()
 }

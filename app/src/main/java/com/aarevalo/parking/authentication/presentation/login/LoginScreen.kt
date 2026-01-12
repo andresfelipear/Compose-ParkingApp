@@ -1,5 +1,6 @@
 package com.aarevalo.parking.authentication.presentation.login
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -23,19 +24,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -46,55 +44,64 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aarevalo.parking.R
+import com.aarevalo.parking.core.presentation.util.ObserveAsEvents
 import com.aarevalo.parking.ui.theme.ParkingTheme
-import kotlinx.coroutines.flow.collectLatest
 
 @Composable
-fun LoginScreen(
+fun LoginScreenRoot(
     onNavigateToSignUp: () -> Unit,
     onNavigateToForgotPassword: () -> Unit,
-    onNavigateToHome: () -> Unit,
+    onLoginSuccess: () -> Unit,
     viewModel: LoginViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(key1 = true) {
-        viewModel.navigationEvent.collectLatest { event ->
-            when (event) {
-                LoginNavigationEvent.NavigateToSignUp -> onNavigateToSignUp()
-                LoginNavigationEvent.NavigateToForgotPassword -> onNavigateToForgotPassword()
-                LoginNavigationEvent.NavigateToHome -> onNavigateToHome()
+    ObserveAsEvents(viewModel.events) { event ->
+        when (event) {
+            is LoginScreenEvent.Success -> {
+                keyboardController?.hide()
+                Toast.makeText(
+                    context,
+                    R.string.login_success,
+                    Toast.LENGTH_SHORT
+                ).show()
+                onLoginSuccess()
+            }
+
+            is LoginScreenEvent.Error -> {
+                keyboardController?.hide()
+                Toast.makeText(
+                    context,
+                    event.message.asString(context),
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
 
-    LaunchedEffect(key1 = state.generalError) {
-        state.generalError?.let { error ->
-            snackbarHostState.showSnackbar(error.asString(context))
-            viewModel.onEvent(LoginEvent.ClearError)
-        }
-    }
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
-    LoginScreenContent(
+    LoginScreen(
         state = state,
-        snackbarHostState = snackbarHostState,
-        onEvent = viewModel::onEvent
+        onAction = { action ->
+            when (action) {
+                is LoginAction.OnSignUpClick -> onNavigateToSignUp()
+                is LoginAction.OnForgotPasswordClick -> onNavigateToForgotPassword()
+                else -> viewModel.onAction(action)
+            }
+        }
     )
 }
 
 @Composable
-private fun LoginScreenContent(
+private fun LoginScreen(
     state: LoginState,
-    snackbarHostState: SnackbarHostState,
-    onEvent: (LoginEvent) -> Unit
+    onAction: (LoginAction) -> Unit
 ) {
     val focusManager = LocalFocusManager.current
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
+    Scaffold { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -126,12 +133,12 @@ private fun LoginScreenContent(
             // Email field
             OutlinedTextField(
                 value = state.email,
-                onValueChange = { onEvent(LoginEvent.EmailChanged(it)) },
+                onValueChange = { onAction(LoginAction.OnEmailChanged(it)) },
                 label = { Text(stringResource(R.string.email)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Email,
-                        contentDescription = stringResource(R.string.email)
+                        contentDescription = null
                     )
                 },
                 keyboardOptions = KeyboardOptions(
@@ -141,8 +148,6 @@ private fun LoginScreenContent(
                 keyboardActions = KeyboardActions(
                     onNext = { focusManager.moveFocus(FocusDirection.Down) }
                 ),
-                isError = state.emailError != null,
-                supportingText = state.emailError?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -152,16 +157,16 @@ private fun LoginScreenContent(
             // Password field
             OutlinedTextField(
                 value = state.password,
-                onValueChange = { onEvent(LoginEvent.PasswordChanged(it)) },
+                onValueChange = { onAction(LoginAction.OnPasswordChanged(it)) },
                 label = { Text(stringResource(R.string.password)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Lock,
-                        contentDescription = stringResource(R.string.password)
+                        contentDescription = null
                     )
                 },
                 trailingIcon = {
-                    IconButton(onClick = { onEvent(LoginEvent.TogglePasswordVisibility) }) {
+                    IconButton(onClick = { onAction(LoginAction.OnTogglePasswordVisibility) }) {
                         Icon(
                             imageVector = if (state.isPasswordVisible) {
                                 Icons.Default.VisibilityOff
@@ -188,18 +193,16 @@ private fun LoginScreenContent(
                 keyboardActions = KeyboardActions(
                     onDone = {
                         focusManager.clearFocus()
-                        onEvent(LoginEvent.Login)
+                        onAction(LoginAction.OnLoginClick)
                     }
                 ),
-                isError = state.passwordError != null,
-                supportingText = state.passwordError?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
 
             // Forgot password
             TextButton(
-                onClick = { onEvent(LoginEvent.NavigateToForgotPassword) },
+                onClick = { onAction(LoginAction.OnForgotPasswordClick) },
                 modifier = Modifier.align(Alignment.End)
             ) {
                 Text(stringResource(R.string.forgot_password))
@@ -209,7 +212,7 @@ private fun LoginScreenContent(
 
             // Login button
             Button(
-                onClick = { onEvent(LoginEvent.Login) },
+                onClick = { onAction(LoginAction.OnLoginClick) },
                 enabled = !state.isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -228,7 +231,7 @@ private fun LoginScreenContent(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Sign up link
-            TextButton(onClick = { onEvent(LoginEvent.NavigateToSignUp) }) {
+            TextButton(onClick = { onAction(LoginAction.OnSignUpClick) }) {
                 Text(stringResource(R.string.dont_have_account))
             }
 
@@ -241,10 +244,9 @@ private fun LoginScreenContent(
 @Composable
 private fun LoginScreenPreview() {
     ParkingTheme {
-        LoginScreenContent(
+        LoginScreen(
             state = LoginState(),
-            snackbarHostState = remember { SnackbarHostState() },
-            onEvent = {}
+            onAction = {}
         )
     }
 }

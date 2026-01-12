@@ -1,6 +1,7 @@
 package com.aarevalo.parking.map.presentation
 
 import android.Manifest
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -26,7 +27,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,47 +35,45 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aarevalo.parking.R
 import com.aarevalo.parking.core.domain.model.ParkingMeter
 import com.aarevalo.parking.core.presentation.components.ErrorMessage
 import com.aarevalo.parking.core.presentation.components.LoadingIndicator
 import com.aarevalo.parking.core.presentation.components.ParkingMeterCard
+import com.aarevalo.parking.core.presentation.util.ObserveAsEvents
 import com.aarevalo.parking.map.domain.model.SortOption
 import com.aarevalo.parking.ui.theme.ParkingTheme
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.CameraPositionState
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
-import kotlinx.coroutines.flow.collectLatest
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapScreen(
+fun MapScreenRoot(
     onMeterClick: (ParkingMeter) -> Unit = {},
     viewModel: MapViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -84,54 +82,49 @@ fun MapScreen(
         val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
 
         if (fineLocationGranted || coarseLocationGranted) {
-            viewModel.onEvent(MapEvent.CenterOnUserLocation)
+            viewModel.onAction(MapAction.OnLocationPermissionGranted)
         }
     }
 
-    LaunchedEffect(key1 = true) {
-        viewModel.sideEffect.collectLatest { effect ->
-            when (effect) {
-                is MapSideEffect.RequestLocationPermission -> {
-                    locationPermissionLauncher.launch(
-                        arrayOf(
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.ACCESS_COARSE_LOCATION
-                        )
+    ObserveAsEvents(viewModel.events) { event ->
+        when (event) {
+            is MapScreenEvent.Error -> {
+                Toast.makeText(
+                    context,
+                    event.message.asString(context),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+
+            is MapScreenEvent.RequestLocationPermission -> {
+                locationPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
                     )
-                }
+                )
+            }
 
-                is MapSideEffect.AnimateCameraToLocation -> {
-                    // Camera animation handled by CameraPositionState
-                }
-
-                is MapSideEffect.ShowError -> {
-                    snackbarHostState.showSnackbar(effect.message)
-                }
+            is MapScreenEvent.AnimateCameraToLocation -> {
+                // Camera animation handled by CameraPositionState in the screen
             }
         }
     }
 
-    LaunchedEffect(key1 = state.error) {
-        state.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            viewModel.onEvent(MapEvent.ClearError)
-        }
-    }
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
-    MapScreenContent(
+    MapScreen(
         state = state,
-        snackbarHostState = snackbarHostState,
-        onEvent = viewModel::onEvent,
+        onAction = viewModel::onAction,
         onMeterClick = onMeterClick
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MapScreenContent(
+private fun MapScreen(
     state: MapUiState,
-    snackbarHostState: SnackbarHostState,
-    onEvent: (MapEvent) -> Unit,
+    onAction: (MapAction) -> Unit,
     onMeterClick: (ParkingMeter) -> Unit
 ) {
     val cameraPositionState = rememberCameraPositionState {
@@ -146,21 +139,25 @@ private fun MapScreenContent(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Vancouver Parking") },
+                title = { Text(stringResource(R.string.vancouver_parking)) },
                 actions = {
-                    IconButton(onClick = { onEvent(MapEvent.ToggleSortDialog) }) {
+                    IconButton(onClick = { onAction(MapAction.OnToggleSortDialog) }) {
                         Icon(
                             imageVector = Icons.Default.FilterList,
-                            contentDescription = "Sort"
+                            contentDescription = stringResource(R.string.sort)
                         )
                     }
-                    IconButton(onClick = { onEvent(MapEvent.ToggleViewMode) }) {
+                    IconButton(onClick = { onAction(MapAction.OnToggleViewMode) }) {
                         Icon(
                             imageVector = if (state.isListView) Icons.Default.Map else Icons.Default.List,
-                            contentDescription = if (state.isListView) "Map View" else "List View"
+                            contentDescription = if (state.isListView) {
+                                stringResource(R.string.map_view)
+                            } else {
+                                stringResource(R.string.list_view)
+                            }
                         )
                     }
-                    IconButton(onClick = { onEvent(MapEvent.RefreshData) }) {
+                    IconButton(onClick = { onAction(MapAction.OnRefreshData) }) {
                         if (state.isRefreshing) {
                             CircularProgressIndicator(
                                 modifier = Modifier.height(24.dp),
@@ -169,25 +166,22 @@ private fun MapScreenContent(
                         } else {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
-                                contentDescription = "Refresh"
+                                contentDescription = stringResource(R.string.refresh)
                             )
                         }
                     }
                 }
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (!state.isListView) {
-                Column {
-                    SmallFloatingActionButton(
-                        onClick = { onEvent(MapEvent.CenterOnUserLocation) }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MyLocation,
-                            contentDescription = "My Location"
-                        )
-                    }
+                SmallFloatingActionButton(
+                    onClick = { onAction(MapAction.OnCenterOnUserLocation) }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MyLocation,
+                        contentDescription = stringResource(R.string.my_location)
+                    )
                 }
             }
         }
@@ -200,12 +194,12 @@ private fun MapScreenContent(
             // Search bar
             OutlinedTextField(
                 value = state.searchQuery,
-                onValueChange = { onEvent(MapEvent.SearchQueryChanged(it)) },
-                placeholder = { Text("Search parking meters...") },
+                onValueChange = { onAction(MapAction.OnSearchQueryChanged(it)) },
+                placeholder = { Text(stringResource(R.string.search_parking_meters)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "Search"
+                        contentDescription = null
                     )
                 },
                 singleLine = true,
@@ -220,21 +214,14 @@ private fun MapScreenContent(
                     LoadingIndicator()
                 }
 
-                state.error != null && state.parkingMeters.isEmpty() -> {
-                    ErrorMessage(
-                        message = state.error,
-                        onRetry = { onEvent(MapEvent.RefreshData) }
-                    )
-                }
-
                 else -> {
                     if (state.isListView) {
                         ParkingMeterListView(
                             meters = state.filteredMeters,
                             isRefreshing = state.isRefreshing,
-                            onRefresh = { onEvent(MapEvent.RefreshData) },
+                            onRefresh = { onAction(MapAction.OnRefreshData) },
                             onMeterClick = { meter ->
-                                onEvent(MapEvent.MeterSelected(meter))
+                                onAction(MapAction.OnMeterSelected(meter))
                                 onMeterClick(meter)
                             }
                         )
@@ -244,7 +231,7 @@ private fun MapScreenContent(
                             cameraPositionState = cameraPositionState,
                             isUserLocationEnabled = state.mapViewState.isUserLocationEnabled,
                             onMeterClick = { meter ->
-                                onEvent(MapEvent.MeterSelected(meter))
+                                onAction(MapAction.OnMeterSelected(meter))
                                 onMeterClick(meter)
                             }
                         )
@@ -257,15 +244,15 @@ private fun MapScreenContent(
         if (state.showSortDialog) {
             SortDialog(
                 currentSort = state.sortOption,
-                onSortSelected = { onEvent(MapEvent.SortOptionSelected(it)) },
-                onDismiss = { onEvent(MapEvent.ToggleSortDialog) }
+                onSortSelected = { onAction(MapAction.OnSortOptionSelected(it)) },
+                onDismiss = { onAction(MapAction.OnToggleSortDialog) }
             )
         }
 
         // Meter details bottom sheet
         if (state.showMeterDetails && state.selectedMeter != null) {
             ModalBottomSheet(
-                onDismissRequest = { onEvent(MapEvent.DismissMeterDetails) },
+                onDismissRequest = { onAction(MapAction.OnDismissMeterDetails) },
                 sheetState = bottomSheetState
             ) {
                 ParkingMeterCard(
@@ -297,7 +284,7 @@ private fun ParkingMeterListView(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No parking meters found",
+                    text = stringResource(R.string.no_parking_meters_found),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -325,7 +312,7 @@ private fun ParkingMeterListView(
 @Composable
 private fun ParkingMeterMapView(
     meters: List<ParkingMeter>,
-    cameraPositionState: com.google.maps.android.compose.CameraPositionState,
+    cameraPositionState: CameraPositionState,
     isUserLocationEnabled: Boolean,
     onMeterClick: (ParkingMeter) -> Unit
 ) {
@@ -343,7 +330,7 @@ private fun ParkingMeterMapView(
         meters.forEach { meter ->
             Marker(
                 state = MarkerState(position = LatLng(meter.latitude, meter.longitude)),
-                title = "Meter ${meter.meterId}",
+                title = stringResource(R.string.meter_id, meter.meterId),
                 snippet = "$${meter.rate}/hr - ${meter.timeLimit} min",
                 onClick = {
                     onMeterClick(meter)
@@ -362,7 +349,7 @@ private fun SortDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Sort by") },
+        title = { Text(stringResource(R.string.sort_by)) },
         text = {
             Column {
                 SortOption.entries.forEach { option ->
@@ -377,14 +364,21 @@ private fun SortDialog(
                             onClick = { onSortSelected(option) }
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(option.displayName)
+                        Text(
+                            text = when (option) {
+                                SortOption.RATE_LOW_TO_HIGH -> stringResource(R.string.sort_price_low_high)
+                                SortOption.RATE_HIGH_TO_LOW -> stringResource(R.string.sort_price_high_low)
+                                SortOption.DISTANCE -> stringResource(R.string.sort_distance)
+                                SortOption.TIME_LIMIT -> stringResource(R.string.sort_time_limit)
+                            }
+                        )
                     }
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -394,7 +388,7 @@ private fun SortDialog(
 @Composable
 private fun MapScreenPreview() {
     ParkingTheme {
-        MapScreenContent(
+        MapScreen(
             state = MapUiState(
                 parkingMeters = listOf(
                     ParkingMeter(
@@ -434,8 +428,7 @@ private fun MapScreenPreview() {
                 ),
                 isListView = true
             ),
-            snackbarHostState = remember { SnackbarHostState() },
-            onEvent = {},
+            onAction = {},
             onMeterClick = {}
         )
     }

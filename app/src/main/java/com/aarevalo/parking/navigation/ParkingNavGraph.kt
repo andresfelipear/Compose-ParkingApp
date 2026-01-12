@@ -11,10 +11,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.aarevalo.parking.authentication.domain.model.AuthState
-import com.aarevalo.parking.authentication.presentation.forgotpassword.ForgotPasswordScreen
-import com.aarevalo.parking.authentication.presentation.login.LoginScreen
-import com.aarevalo.parking.authentication.presentation.signup.SignUpScreen
-import com.aarevalo.parking.map.presentation.MapScreen
+import com.aarevalo.parking.authentication.presentation.forgotpassword.ForgotPasswordScreenRoot
+import com.aarevalo.parking.authentication.presentation.login.LoginScreenRoot
+import com.aarevalo.parking.authentication.presentation.signup.SignUpScreenRoot
+import com.aarevalo.parking.map.presentation.MapScreenRoot
 
 /**
  * Main navigation graph for the Parking app.
@@ -38,7 +38,8 @@ fun ParkingNavGraph(
         when (authState) {
             is AuthState.Authenticated -> {
                 // Navigate to map if currently on auth screens
-                if (navController.currentDestination?.route in listOf(
+                val currentRoute = navController.currentDestination?.route
+                if (currentRoute in listOf(
                         Screen.Login.route,
                         Screen.SignUp.route,
                         Screen.ForgotPassword.route
@@ -49,19 +50,22 @@ fun ParkingNavGraph(
                     }
                 }
             }
+
             is AuthState.Unauthenticated -> {
                 // Navigate to login if currently on protected screens
-                if (navController.currentDestination?.route !in listOf(
+                val currentRoute = navController.currentDestination?.route
+                if (currentRoute !in listOf(
                         Screen.Login.route,
                         Screen.SignUp.route,
                         Screen.ForgotPassword.route
-                    )
+                    ) && currentRoute != null
                 ) {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0) { inclusive = true }
                     }
                 }
             }
+
             else -> { /* Loading or Error - do nothing */ }
         }
     }
@@ -73,14 +77,14 @@ fun ParkingNavGraph(
     ) {
         // Authentication Flow
         composable(route = Screen.Login.route) {
-            LoginScreen(
+            LoginScreenRoot(
                 onNavigateToSignUp = {
                     navController.navigate(Screen.SignUp.route)
                 },
                 onNavigateToForgotPassword = {
                     navController.navigate(Screen.ForgotPassword.route)
                 },
-                onNavigateToHome = {
+                onLoginSuccess = {
                     navController.navigate(Screen.Map.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
@@ -89,11 +93,11 @@ fun ParkingNavGraph(
         }
 
         composable(route = Screen.SignUp.route) {
-            SignUpScreen(
+            SignUpScreenRoot(
                 onNavigateToLogin = {
                     navController.popBackStack()
                 },
-                onNavigateToHome = {
+                onSignUpSuccess = {
                     navController.navigate(Screen.Map.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
@@ -105,7 +109,7 @@ fun ParkingNavGraph(
         }
 
         composable(route = Screen.ForgotPassword.route) {
-            ForgotPasswordScreen(
+            ForgotPasswordScreenRoot(
                 onNavigateBack = {
                     navController.popBackStack()
                 }
@@ -114,7 +118,7 @@ fun ParkingNavGraph(
 
         // Main Flow
         composable(route = Screen.Map.route) {
-            MapScreen(
+            MapScreenRoot(
                 onMeterClick = { meter ->
                     // Optional: Navigate to meter details
                     // navController.navigate(Screen.MeterDetails.createRoute(meter.meterId))

@@ -1,14 +1,11 @@
 package com.aarevalo.parking.authentication.presentation.forgotpassword
 
-import com.aarevalo.parking.core.presentation.util.UiText
-
 /**
  * UI State for the Forgot Password screen.
+ * Note: Errors are handled through ForgotPasswordScreenEvent, not stored in state.
  */
 data class ForgotPasswordState(
     val email: String = "",
     val isLoading: Boolean = false,
-    val emailError: UiText? = null,
-    val generalError: UiText? = null,
     val isEmailSent: Boolean = false
 )

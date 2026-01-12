@@ -1,5 +1,6 @@
 package com.aarevalo.parking.authentication.presentation.forgotpassword
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -24,19 +25,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -46,49 +44,50 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aarevalo.parking.R
+import com.aarevalo.parking.core.presentation.util.ObserveAsEvents
 import com.aarevalo.parking.ui.theme.ParkingTheme
-import kotlinx.coroutines.flow.collectLatest
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ForgotPasswordScreen(
+fun ForgotPasswordScreenRoot(
     onNavigateBack: () -> Unit,
     viewModel: ForgotPasswordViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(key1 = true) {
-        viewModel.navigationEvent.collectLatest { event ->
-            when (event) {
-                ForgotPasswordNavigationEvent.NavigateBack -> onNavigateBack()
+    ObserveAsEvents(viewModel.events) { event ->
+        when (event) {
+            is ForgotPasswordScreenEvent.Success -> {
+                keyboardController?.hide()
+                // Success is shown in the UI via isEmailSent state
+            }
+
+            is ForgotPasswordScreenEvent.Error -> {
+                keyboardController?.hide()
+                Toast.makeText(
+                    context,
+                    event.message.asString(context),
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
 
-    LaunchedEffect(key1 = state.generalError) {
-        state.generalError?.let { error ->
-            snackbarHostState.showSnackbar(error.asString(context))
-            viewModel.onEvent(ForgotPasswordEvent.ClearError)
-        }
-    }
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
-    ForgotPasswordScreenContent(
+    ForgotPasswordScreen(
         state = state,
-        snackbarHostState = snackbarHostState,
-        onNavigateBack = onNavigateBack,
-        onEvent = viewModel::onEvent
+        onAction = viewModel::onAction,
+        onNavigateBack = onNavigateBack
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ForgotPasswordScreenContent(
+private fun ForgotPasswordScreen(
     state: ForgotPasswordState,
-    snackbarHostState: SnackbarHostState,
-    onNavigateBack: () -> Unit,
-    onEvent: (ForgotPasswordEvent) -> Unit
+    onAction: (ForgotPasswordAction) -> Unit,
+    onNavigateBack: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
 
@@ -105,8 +104,7 @@ private fun ForgotPasswordScreenContent(
                     }
                 }
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -118,20 +116,15 @@ private fun ForgotPasswordScreenContent(
             verticalArrangement = Arrangement.Center
         ) {
             if (state.isEmailSent) {
-                // Success state
                 EmailSentContent(
                     email = state.email,
                     onBackToLogin = onNavigateBack
                 )
             } else {
-                // Input state
                 ResetPasswordForm(
                     state = state,
-                    onEmailChanged = { onEvent(ForgotPasswordEvent.EmailChanged(it)) },
-                    onSendResetEmail = {
-                        focusManager.clearFocus()
-                        onEvent(ForgotPasswordEvent.SendResetEmail)
-                    }
+                    onAction = onAction,
+                    onClearFocus = { focusManager.clearFocus() }
                 )
             }
         }
@@ -141,11 +134,9 @@ private fun ForgotPasswordScreenContent(
 @Composable
 private fun ResetPasswordForm(
     state: ForgotPasswordState,
-    onEmailChanged: (String) -> Unit,
-    onSendResetEmail: () -> Unit
+    onAction: (ForgotPasswordAction) -> Unit,
+    onClearFocus: () -> Unit
 ) {
-    val focusManager = LocalFocusManager.current
-
     Spacer(modifier = Modifier.height(24.dp))
 
     Text(
@@ -167,12 +158,12 @@ private fun ResetPasswordForm(
 
     OutlinedTextField(
         value = state.email,
-        onValueChange = onEmailChanged,
+        onValueChange = { onAction(ForgotPasswordAction.OnEmailChanged(it)) },
         label = { Text(stringResource(R.string.email)) },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Default.Email,
-                contentDescription = stringResource(R.string.email)
+                contentDescription = null
             )
         },
         keyboardOptions = KeyboardOptions(
@@ -181,12 +172,10 @@ private fun ResetPasswordForm(
         ),
         keyboardActions = KeyboardActions(
             onDone = {
-                focusManager.clearFocus()
-                onSendResetEmail()
+                onClearFocus()
+                onAction(ForgotPasswordAction.OnSendResetClick)
             }
         ),
-        isError = state.emailError != null,
-        supportingText = state.emailError?.let { { Text(it.asString()) } },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
     )
@@ -194,7 +183,10 @@ private fun ResetPasswordForm(
     Spacer(modifier = Modifier.height(24.dp))
 
     Button(
-        onClick = onSendResetEmail,
+        onClick = {
+            onClearFocus()
+            onAction(ForgotPasswordAction.OnSendResetClick)
+        },
         enabled = !state.isLoading && state.email.isNotBlank(),
         modifier = Modifier
             .fillMaxWidth()
@@ -271,11 +263,10 @@ private fun EmailSentContent(
 @Composable
 private fun ForgotPasswordScreenPreview() {
     ParkingTheme {
-        ForgotPasswordScreenContent(
+        ForgotPasswordScreen(
             state = ForgotPasswordState(),
-            snackbarHostState = remember { SnackbarHostState() },
-            onNavigateBack = {},
-            onEvent = {}
+            onAction = {},
+            onNavigateBack = {}
         )
     }
 }
@@ -284,14 +275,13 @@ private fun ForgotPasswordScreenPreview() {
 @Composable
 private fun ForgotPasswordSuccessPreview() {
     ParkingTheme {
-        ForgotPasswordScreenContent(
+        ForgotPasswordScreen(
             state = ForgotPasswordState(
                 email = "user@example.com",
                 isEmailSent = true
             ),
-            snackbarHostState = remember { SnackbarHostState() },
-            onNavigateBack = {},
-            onEvent = {}
+            onAction = {},
+            onNavigateBack = {}
         )
     }
 }

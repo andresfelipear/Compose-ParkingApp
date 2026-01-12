@@ -7,18 +7,15 @@ import com.aarevalo.parking.authentication.domain.usecase.ForgotPasswordUseCase
 import com.aarevalo.parking.authentication.presentation.util.toUiText
 import com.aarevalo.parking.core.presentation.util.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
-/**
- * ViewModel for the Forgot Password screen.
- */
 @HiltViewModel
 class ForgotPasswordViewModel @Inject constructor(
     private val forgotPasswordUseCase: ForgotPasswordUseCase
@@ -27,71 +24,46 @@ class ForgotPasswordViewModel @Inject constructor(
     private val _state = MutableStateFlow(ForgotPasswordState())
     val state = _state.asStateFlow()
 
-    private val _navigationEvent = MutableSharedFlow<ForgotPasswordNavigationEvent>()
-    val navigationEvent = _navigationEvent.asSharedFlow()
+    private val eventChannel = Channel<ForgotPasswordScreenEvent>()
+    val events = eventChannel.receiveAsFlow()
 
-    fun onEvent(event: ForgotPasswordEvent) {
-        when (event) {
-            is ForgotPasswordEvent.EmailChanged -> {
-                _state.update { it.copy(email = event.email, emailError = null) }
+    fun onAction(action: ForgotPasswordAction) {
+        when (action) {
+            is ForgotPasswordAction.OnEmailChanged -> {
+                _state.update { it.copy(email = action.email) }
             }
 
-            is ForgotPasswordEvent.SendResetEmail -> {
+            is ForgotPasswordAction.OnSendResetClick -> {
                 sendResetEmail()
-            }
-
-            is ForgotPasswordEvent.NavigateBack -> {
-                viewModelScope.launch {
-                    _navigationEvent.emit(ForgotPasswordNavigationEvent.NavigateBack)
-                }
-            }
-
-            is ForgotPasswordEvent.ClearError -> {
-                _state.update { it.copy(generalError = null) }
             }
         }
     }
 
     private fun sendResetEmail() {
         viewModelScope.launch {
-            _state.update { 
-                it.copy(
-                    isLoading = true, 
-                    generalError = null,
-                    emailError = null
-                ) 
-            }
+            _state.update { it.copy(isLoading = true) }
 
-            when (val result = forgotPasswordUseCase(state.value.email)) {
+            val result = forgotPasswordUseCase(state.value.email)
+
+            _state.update { it.copy(isLoading = false) }
+
+            when (result) {
                 is ForgotPasswordResult.Success -> {
-                    Timber.d("Password reset email sent")
-                    _state.update { it.copy(isLoading = false, isEmailSent = true) }
+                    Timber.d("Password reset email sent to: ${state.value.email}")
+                    _state.update { it.copy(isEmailSent = true) }
+                    eventChannel.send(ForgotPasswordScreenEvent.Success)
                 }
 
                 is ForgotPasswordResult.ValidationError -> {
-                    Timber.d("Validation error: ${result.error}")
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            generalError = result.error.toUiText()
-                        )
-                    }
+                    Timber.d("Forgot password validation error: ${result.error}")
+                    eventChannel.send(ForgotPasswordScreenEvent.Error(result.error.toUiText()))
                 }
 
                 is ForgotPasswordResult.Error -> {
-                    Timber.e("Error sending reset email: ${result.message}")
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            generalError = UiText.DynamicString(result.message)
-                        )
-                    }
+                    Timber.e("Forgot password error: ${result.message}")
+                    eventChannel.send(ForgotPasswordScreenEvent.Error(UiText.DynamicString(result.message)))
                 }
             }
         }
     }
-}
-
-sealed class ForgotPasswordNavigationEvent {
-    data object NavigateBack : ForgotPasswordNavigationEvent()
 }

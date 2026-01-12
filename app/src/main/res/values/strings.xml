@@ -18,6 +18,10 @@
     <string name="join_app">Join Vancouver Parking</string>
     <string name="join_subtitle">Find the best parking rates in downtown</string>
 
+    <!-- Success Messages -->
+    <string name="login_success">You\'re logged in!</string>
+    <string name="signup_success">Account created successfully! Please verify your email.</string>
+
     <!-- Forgot Password -->
     <string name="reset_password">Reset Password</string>
     <string name="forgot_password_title">Forgot your password?</string>

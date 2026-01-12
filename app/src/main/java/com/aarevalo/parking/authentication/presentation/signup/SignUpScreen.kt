@@ -1,5 +1,6 @@
 package com.aarevalo.parking.authentication.presentation.signup
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -26,20 +27,17 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,52 +48,62 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aarevalo.parking.R
+import com.aarevalo.parking.core.presentation.util.ObserveAsEvents
 import com.aarevalo.parking.ui.theme.ParkingTheme
-import kotlinx.coroutines.flow.collectLatest
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SignUpScreen(
+fun SignUpScreenRoot(
     onNavigateToLogin: () -> Unit,
-    onNavigateToHome: () -> Unit,
+    onSignUpSuccess: () -> Unit,
     onNavigateBack: () -> Unit,
     viewModel: SignUpViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(key1 = true) {
-        viewModel.navigationEvent.collectLatest { event ->
-            when (event) {
-                SignUpNavigationEvent.NavigateToLogin -> onNavigateToLogin()
-                SignUpNavigationEvent.NavigateToHome -> onNavigateToHome()
+    ObserveAsEvents(viewModel.events) { event ->
+        when (event) {
+            is SignUpScreenEvent.Success -> {
+                keyboardController?.hide()
+                Toast.makeText(
+                    context,
+                    R.string.signup_success,
+                    Toast.LENGTH_SHORT
+                ).show()
+                onSignUpSuccess()
+            }
+
+            is SignUpScreenEvent.Error -> {
+                keyboardController?.hide()
+                Toast.makeText(
+                    context,
+                    event.message.asString(context),
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
 
-    LaunchedEffect(key1 = state.generalError) {
-        state.generalError?.let { error ->
-            snackbarHostState.showSnackbar(error.asString(context))
-            viewModel.onEvent(SignUpEvent.ClearError)
-        }
-    }
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
-    SignUpScreenContent(
+    SignUpScreen(
         state = state,
-        snackbarHostState = snackbarHostState,
-        onNavigateBack = onNavigateBack,
-        onEvent = viewModel::onEvent
+        onAction = { action ->
+            when (action) {
+                is SignUpAction.OnLoginClick -> onNavigateToLogin()
+                else -> viewModel.onAction(action)
+            }
+        },
+        onNavigateBack = onNavigateBack
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SignUpScreenContent(
+private fun SignUpScreen(
     state: SignUpState,
-    snackbarHostState: SnackbarHostState,
-    onNavigateBack: () -> Unit,
-    onEvent: (SignUpEvent) -> Unit
+    onAction: (SignUpAction) -> Unit,
+    onNavigateBack: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
 
@@ -112,8 +120,7 @@ private fun SignUpScreenContent(
                     }
                 }
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -145,12 +152,12 @@ private fun SignUpScreenContent(
             // Display Name field
             OutlinedTextField(
                 value = state.displayName,
-                onValueChange = { onEvent(SignUpEvent.DisplayNameChanged(it)) },
+                onValueChange = { onAction(SignUpAction.OnDisplayNameChanged(it)) },
                 label = { Text(stringResource(R.string.display_name)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Person,
-                        contentDescription = stringResource(R.string.display_name)
+                        contentDescription = null
                     )
                 },
                 keyboardOptions = KeyboardOptions(
@@ -160,8 +167,6 @@ private fun SignUpScreenContent(
                 keyboardActions = KeyboardActions(
                     onNext = { focusManager.moveFocus(FocusDirection.Down) }
                 ),
-                isError = state.displayNameError != null,
-                supportingText = state.displayNameError?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -171,12 +176,12 @@ private fun SignUpScreenContent(
             // Email field
             OutlinedTextField(
                 value = state.email,
-                onValueChange = { onEvent(SignUpEvent.EmailChanged(it)) },
+                onValueChange = { onAction(SignUpAction.OnEmailChanged(it)) },
                 label = { Text(stringResource(R.string.email)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Email,
-                        contentDescription = stringResource(R.string.email)
+                        contentDescription = null
                     )
                 },
                 keyboardOptions = KeyboardOptions(
@@ -186,8 +191,6 @@ private fun SignUpScreenContent(
                 keyboardActions = KeyboardActions(
                     onNext = { focusManager.moveFocus(FocusDirection.Down) }
                 ),
-                isError = state.emailError != null,
-                supportingText = state.emailError?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -197,16 +200,16 @@ private fun SignUpScreenContent(
             // Password field
             OutlinedTextField(
                 value = state.password,
-                onValueChange = { onEvent(SignUpEvent.PasswordChanged(it)) },
+                onValueChange = { onAction(SignUpAction.OnPasswordChanged(it)) },
                 label = { Text(stringResource(R.string.password)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Lock,
-                        contentDescription = stringResource(R.string.password)
+                        contentDescription = null
                     )
                 },
                 trailingIcon = {
-                    IconButton(onClick = { onEvent(SignUpEvent.TogglePasswordVisibility) }) {
+                    IconButton(onClick = { onAction(SignUpAction.OnTogglePasswordVisibility) }) {
                         Icon(
                             imageVector = if (state.isPasswordVisible) {
                                 Icons.Default.VisibilityOff
@@ -233,8 +236,6 @@ private fun SignUpScreenContent(
                 keyboardActions = KeyboardActions(
                     onNext = { focusManager.moveFocus(FocusDirection.Down) }
                 ),
-                isError = state.passwordError != null,
-                supportingText = state.passwordError?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -244,16 +245,16 @@ private fun SignUpScreenContent(
             // Confirm Password field
             OutlinedTextField(
                 value = state.confirmPassword,
-                onValueChange = { onEvent(SignUpEvent.ConfirmPasswordChanged(it)) },
+                onValueChange = { onAction(SignUpAction.OnConfirmPasswordChanged(it)) },
                 label = { Text(stringResource(R.string.confirm_password)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Lock,
-                        contentDescription = stringResource(R.string.confirm_password)
+                        contentDescription = null
                     )
                 },
                 trailingIcon = {
-                    IconButton(onClick = { onEvent(SignUpEvent.ToggleConfirmPasswordVisibility) }) {
+                    IconButton(onClick = { onAction(SignUpAction.OnToggleConfirmPasswordVisibility) }) {
                         Icon(
                             imageVector = if (state.isConfirmPasswordVisible) {
                                 Icons.Default.VisibilityOff
@@ -280,11 +281,9 @@ private fun SignUpScreenContent(
                 keyboardActions = KeyboardActions(
                     onDone = {
                         focusManager.clearFocus()
-                        onEvent(SignUpEvent.SignUp)
+                        onAction(SignUpAction.OnSignUpClick)
                     }
                 ),
-                isError = state.confirmPasswordError != null,
-                supportingText = state.confirmPasswordError?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -293,7 +292,7 @@ private fun SignUpScreenContent(
 
             // Sign Up button
             Button(
-                onClick = { onEvent(SignUpEvent.SignUp) },
+                onClick = { onAction(SignUpAction.OnSignUpClick) },
                 enabled = !state.isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -312,7 +311,7 @@ private fun SignUpScreenContent(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Login link
-            TextButton(onClick = { onEvent(SignUpEvent.NavigateToLogin) }) {
+            TextButton(onClick = { onAction(SignUpAction.OnLoginClick) }) {
                 Text(stringResource(R.string.already_have_account))
             }
 
@@ -325,11 +324,10 @@ private fun SignUpScreenContent(
 @Composable
 private fun SignUpScreenPreview() {
     ParkingTheme {
-        SignUpScreenContent(
+        SignUpScreen(
             state = SignUpState(),
-            snackbarHostState = remember { SnackbarHostState() },
-            onNavigateBack = {},
-            onEvent = {}
+            onAction = {},
+            onNavigateBack = {}
         )
     }
 }

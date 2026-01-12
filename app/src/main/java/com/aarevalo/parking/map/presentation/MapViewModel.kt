@@ -2,8 +2,10 @@ package com.aarevalo.parking.map.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aarevalo.parking.R
 import com.aarevalo.parking.core.domain.model.ParkingMeter
 import com.aarevalo.parking.core.domain.util.Resource
+import com.aarevalo.parking.core.presentation.util.UiText
 import com.aarevalo.parking.map.domain.model.MapViewState
 import com.aarevalo.parking.map.domain.model.SortOption
 import com.aarevalo.parking.map.domain.repository.LocationRepository
@@ -12,20 +14,17 @@ import com.aarevalo.parking.map.domain.usecase.RefreshParkingMetersUseCase
 import com.aarevalo.parking.map.domain.usecase.SearchParkingMetersUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
-/**
- * ViewModel for the Map screen.
- */
 @HiltViewModel
 class MapViewModel @Inject constructor(
     private val getParkingMetersUseCase: GetParkingMetersUseCase,
@@ -37,8 +36,8 @@ class MapViewModel @Inject constructor(
     private val _state = MutableStateFlow(MapUiState())
     val state = _state.asStateFlow()
 
-    private val _sideEffect = MutableSharedFlow<MapSideEffect>()
-    val sideEffect = _sideEffect.asSharedFlow()
+    private val eventChannel = Channel<MapScreenEvent>()
+    val events = eventChannel.receiveAsFlow()
 
     private var searchJob: Job? = null
 
@@ -47,71 +46,71 @@ class MapViewModel @Inject constructor(
         checkAndLoadUserLocation()
     }
 
-    fun onEvent(event: MapEvent) {
-        when (event) {
-            is MapEvent.SearchQueryChanged -> {
-                _state.update { it.copy(searchQuery = event.query) }
-                searchWithDebounce(event.query)
+    fun onAction(action: MapAction) {
+        when (action) {
+            is MapAction.OnSearchQueryChanged -> {
+                _state.update { it.copy(searchQuery = action.query) }
+                searchWithDebounce(action.query)
             }
 
-            is MapEvent.SortOptionSelected -> {
-                _state.update { it.copy(sortOption = event.sortOption, showSortDialog = false) }
+            is MapAction.OnSortOptionSelected -> {
+                _state.update { it.copy(sortOption = action.sortOption, showSortDialog = false) }
                 loadParkingMeters()
             }
 
-            is MapEvent.MeterSelected -> {
+            is MapAction.OnMeterSelected -> {
                 _state.update {
                     it.copy(
-                        selectedMeter = event.meter,
+                        selectedMeter = action.meter,
                         showMeterDetails = true,
                         mapViewState = it.mapViewState.copy(
-                            userLatitude = event.meter.latitude,
-                            userLongitude = event.meter.longitude
+                            userLatitude = action.meter.latitude,
+                            userLongitude = action.meter.longitude
                         )
                     )
                 }
             }
 
-            is MapEvent.MapCameraChanged -> {
+            is MapAction.OnMapCameraChanged -> {
                 _state.update {
                     it.copy(
                         mapViewState = it.mapViewState.copy(
-                            userLatitude = event.latitude,
-                            userLongitude = event.longitude,
-                            zoomLevel = event.zoom
+                            userLatitude = action.latitude,
+                            userLongitude = action.longitude,
+                            zoomLevel = action.zoom
                         )
                     )
                 }
             }
 
-            is MapEvent.ToggleSortDialog -> {
+            is MapAction.OnToggleSortDialog -> {
                 _state.update { it.copy(showSortDialog = !it.showSortDialog) }
             }
 
-            is MapEvent.ToggleViewMode -> {
+            is MapAction.OnToggleViewMode -> {
                 _state.update { it.copy(isListView = !it.isListView) }
             }
 
-            is MapEvent.DismissMeterDetails -> {
+            is MapAction.OnDismissMeterDetails -> {
                 _state.update { it.copy(showMeterDetails = false, selectedMeter = null) }
             }
 
-            is MapEvent.RefreshData -> {
+            is MapAction.OnRefreshData -> {
                 refreshData()
             }
 
-            is MapEvent.RequestLocationPermission -> {
+            is MapAction.OnRequestLocationPermission -> {
                 viewModelScope.launch {
-                    _sideEffect.emit(MapSideEffect.RequestLocationPermission)
+                    eventChannel.send(MapScreenEvent.RequestLocationPermission)
                 }
             }
 
-            is MapEvent.CenterOnUserLocation -> {
+            is MapAction.OnCenterOnUserLocation -> {
                 centerOnUserLocation()
             }
 
-            is MapEvent.ClearError -> {
-                _state.update { it.copy(error = null) }
+            is MapAction.OnLocationPermissionGranted -> {
+                centerOnUserLocation()
             }
         }
     }
@@ -136,18 +135,15 @@ class MapViewModel @Inject constructor(
                     it.copy(
                         parkingMeters = result.data,
                         filteredMeters = result.data,
-                        isLoading = false,
-                        error = null
+                        isLoading = false
                     )
                 }
             }
 
             is Resource.Error -> {
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        error = result.message
-                    )
+                _state.update { it.copy(isLoading = false) }
+                viewModelScope.launch {
+                    eventChannel.send(MapScreenEvent.Error(UiText.DynamicString(result.message)))
                 }
                 Timber.e("Error loading parking meters: ${result.message}")
             }
@@ -197,12 +193,8 @@ class MapViewModel @Inject constructor(
                 }
 
                 is Resource.Error -> {
-                    _state.update {
-                        it.copy(
-                            isRefreshing = false,
-                            error = result.message
-                        )
-                    }
+                    _state.update { it.copy(isRefreshing = false) }
+                    eventChannel.send(MapScreenEvent.Error(UiText.DynamicString(result.message)))
                 }
 
                 is Resource.Loading -> {
@@ -233,17 +225,20 @@ class MapViewModel @Inject constructor(
                                 )
                             )
                         }
-                        _sideEffect.emit(MapSideEffect.AnimateCameraToLocation(lat, lng))
+                        eventChannel.send(MapScreenEvent.AnimateCameraToLocation(lat, lng))
                     }
 
                     is Resource.Error -> {
                         Timber.e("Error getting location: ${result.message}")
                         // Fall back to default Vancouver location
                         _state.update {
-                            it.copy(
-                                mapViewState = MapViewState()
-                            )
+                            it.copy(mapViewState = MapViewState())
                         }
+                        eventChannel.send(
+                            MapScreenEvent.Error(
+                                UiText.StringResource(R.string.error_location_unavailable)
+                            )
+                        )
                     }
 
                     is Resource.Loading -> {
@@ -257,13 +252,4 @@ class MapViewModel @Inject constructor(
     companion object {
         private const val SEARCH_DEBOUNCE_MS = 300L
     }
-}
-
-/**
- * Side effects for the Map screen that should be handled once.
- */
-sealed class MapSideEffect {
-    data object RequestLocationPermission : MapSideEffect()
-    data class AnimateCameraToLocation(val latitude: Double, val longitude: Double) : MapSideEffect()
-    data class ShowError(val message: String) : MapSideEffect()
 }

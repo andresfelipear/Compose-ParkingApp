@@ -6,6 +6,7 @@ import com.aarevalo.parking.map.domain.model.SortOption
 
 /**
  * UI State for the Map screen.
+ * Note: Errors are handled through MapScreenEvent, not stored in state.
  */
 data class MapUiState(
     val parkingMeters: List<ParkingMeter> = emptyList(),
@@ -16,7 +17,6 @@ data class MapUiState(
     val searchQuery: String = "",
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
-    val error: String? = null,
     val showSortDialog: Boolean = false,
     val showMeterDetails: Boolean = false,
     val isListView: Boolean = false
